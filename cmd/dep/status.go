@@ -321,7 +321,7 @@ func (out *dotOutput) DetailFooter() error {
 }
 
 func (out *dotOutput) DetailLine(ds *DetailStatus) error {
-	return out.DetailLine(ds)
+	return out.BasicLine(&ds.BasicStatus)
 }
 
 func (out *dotOutput) MissingHeader() error                { return nil }
