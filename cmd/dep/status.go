@@ -100,6 +100,7 @@ func (cmd *statusCommand) Register(fs *flag.FlagSet) {
 	fs.BoolVar(&cmd.dot, "dot", false, "output the dependency graph in GraphViz format")
 	fs.BoolVar(&cmd.old, "old", false, "only show out-of-date dependencies")
 	fs.BoolVar(&cmd.missing, "missing", false, "only show missing dependencies")
+	fs.BoolVar(&cmd.detail, "detail", false, "include more detail in the chosen format")
 }
 
 type statusCommand struct {
@@ -110,12 +111,16 @@ type statusCommand struct {
 	dot      bool
 	old      bool
 	missing  bool
+	detail   bool
 }
 
 type outputter interface {
 	BasicHeader() error
 	BasicLine(*BasicStatus) error
 	BasicFooter() error
+	DetailHeader() error
+	DetailLine(*DetailStatus) error
+	DetailFooter() error
 	MissingHeader() error
 	MissingLine(*MissingStatus) error
 	MissingFooter() error
@@ -148,6 +153,29 @@ func (out *tableOutput) BasicLine(bs *BasicStatus) error {
 		formatVersion(bs.Revision),
 		bs.getConsolidatedLatest(shortRev),
 		bs.PackageCount,
+	)
+	return err
+}
+
+func (out *tableOutput) DetailHeader() error {
+	_, err := fmt.Fprintf(out.w, "PROJECT\tSOURCE\tCONSTRAINT\tVERSION\tREVISION\tLATEST\tPKGS USED\n")
+	return err
+}
+
+func (out *tableOutput) DetailFooter() error {
+	return out.BasicFooter()
+}
+
+func (out *tableOutput) DetailLine(ds *DetailStatus) error {
+	_, err := fmt.Fprintf(out.w,
+		"%s\t%s\t%s\t%s\t%s\t%s\t%d\t\n",
+		ds.ProjectRoot,
+		ds.Source,
+		ds.getConsolidatedConstraint(),
+		formatVersion(ds.Version),
+		formatVersion(ds.Revision),
+		ds.getConsolidatedLatest(shortRev),
+		ds.PackageCount,
 	)
 	return err
 }
@@ -211,6 +239,21 @@ func (out *jsonOutput) BasicLine(bs *BasicStatus) error {
 	return nil
 }
 
+// TODO: Enhance
+func (out *jsonOutput) DetailHeader() error {
+	return out.BasicHeader()
+}
+
+// TODO: Enhance
+func (out *jsonOutput) DetailFooter() error {
+	return out.BasicFooter()
+}
+
+// TODO: Enhance
+func (out *jsonOutput) DetailLine(ds *DetailStatus) error {
+	return out.DetailLine(ds)
+}
+
 func (out *jsonOutput) MissingHeader() error {
 	out.missing = []*MissingStatus{}
 	return nil
@@ -269,6 +312,21 @@ func (out *dotOutput) BasicLine(bs *BasicStatus) error {
 	return nil
 }
 
+// TODO: Enhance
+func (out *dotOutput) DetailHeader() error {
+	return out.BasicHeader()
+}
+
+// TODO: Enhance
+func (out *dotOutput) DetailFooter() error {
+	return out.BasicFooter()
+}
+
+// TODO: Enhance
+func (out *dotOutput) DetailLine(ds *DetailStatus) error {
+	return out.DetailLine(ds)
+}
+
 func (out *dotOutput) MissingHeader() error                { return nil }
 func (out *dotOutput) MissingLine(ms *MissingStatus) error { return nil }
 func (out *dotOutput) MissingFooter() error                { return nil }
@@ -290,6 +348,21 @@ func (out *templateOutput) BasicLine(bs *BasicStatus) error {
 		PackageCount: bs.PackageCount,
 	}
 	return out.tmpl.Execute(out.w, data)
+}
+
+// TODO: Enhance
+func (out *templateOutput) DetailHeader() error {
+	return out.BasicHeader()
+}
+
+// TODO: Enhance
+func (out *templateOutput) DetailFooter() error {
+	return out.BasicFooter()
+}
+
+// TODO: Enhance
+func (out *templateOutput) DetailLine(ds *DetailStatus) error {
+	return out.DetailLine(ds)
 }
 
 func (out *templateOutput) OldHeader() error { return nil }
@@ -374,7 +447,7 @@ func (cmd *statusCommand) Run(ctx *dep.Ctx, args []string) error {
 		return err
 	}
 
-	hasMissingPkgs, errCount, err := runStatusAll(ctx, out, p, sm)
+	hasMissingPkgs, errCount, err := cmd.runStatusAll(ctx, out, p, sm)
 	if err != nil {
 		switch err {
 		case errFailedUpdate:
@@ -415,6 +488,10 @@ func (cmd *statusCommand) validateFlags() error {
 
 	if cmd.missing {
 		opModes = append(opModes, "-missing")
+	}
+
+	if cmd.detail {
+		opModes = append(opModes, "-detail")
 	}
 
 	// Check if any other flags are passed with -dot.
@@ -598,6 +675,15 @@ type BasicStatus struct {
 	hasError     bool
 }
 
+// DetailStatus contains all information reported about a single dependency
+// in the detailed status output mode. The included information matches the
+// information included about a a project in a lock file.
+type DetailStatus struct {
+	BasicStatus
+	Packages []string
+	Source   string
+}
+
 func (bs *BasicStatus) getConsolidatedConstraint() string {
 	var constraint string
 	if bs.Constraint != nil {
@@ -658,7 +744,7 @@ type MissingStatus struct {
 	MissingPackages []string
 }
 
-func runStatusAll(ctx *dep.Ctx, out outputter, p *dep.Project, sm gps.SourceManager) (hasMissingPkgs bool, errCount int, err error) {
+func (cmd *statusCommand) runStatusAll(ctx *dep.Ctx, out outputter, p *dep.Project, sm gps.SourceManager) (hasMissingPkgs bool, errCount int, err error) {
 	// While the network churns on ListVersions() requests, statically analyze
 	// code from the current project.
 	ptree, err := p.ParseRootPackageTree()
@@ -713,8 +799,8 @@ func runStatusAll(ctx *dep.Ctx, out outputter, p *dep.Project, sm gps.SourceMana
 
 		logger.Println("Checking upstream projects:")
 
-		// BasicStatus channel to collect all the BasicStatus.
-		bsCh := make(chan *BasicStatus, len(slp))
+		// DetailStatus channel to collect all the DetailStatus.
+		dsCh := make(chan *DetailStatus, len(slp))
 
 		// Error channels to collect different errors.
 		errListPkgCh := make(chan error, len(slp))
@@ -817,14 +903,21 @@ func runStatusAll(ctx *dep.Ctx, out outputter, p *dep.Project, sm gps.SourceMana
 					}
 				}
 
-				bsCh <- &bs
+				ds := DetailStatus{
+					BasicStatus: bs,
+				}
+
+				// TODO: Make this conditional, to avoid unnecessary work
+				ds.Source = proj.Ident().Source
+
+				dsCh <- &ds
 
 				wg.Done()
 			}(proj)
 		}
 
 		wg.Wait()
-		close(bsCh)
+		close(dsCh)
 		close(errListPkgCh)
 		close(errListVerCh)
 
@@ -861,16 +954,31 @@ func runStatusAll(ctx *dep.Ctx, out outputter, p *dep.Project, sm gps.SourceMana
 			}
 		}
 
-		// A map of ProjectRoot and *BasicStatus. This is used in maintain the
-		// order of BasicStatus in output by collecting all the BasicStatus and
-		// then using them in order.
-		bsMap := make(map[string]*BasicStatus)
-		for bs := range bsCh {
-			bsMap[bs.ProjectRoot] = bs
-		}
+		if cmd.detail {
+			// A map of ProjectRoot and *DetailStatus. This is used in maintain the
+			// order of DetailStatus in output by collecting all the DetailStatus and
+			// then using them in order.
+			dsMap := make(map[string]*DetailStatus)
+			for ds := range dsCh {
+				dsMap[ds.ProjectRoot] = ds
+			}
 
-		if err := basicOutputAll(out, slp, bsMap); err != nil {
-			return false, 0, err
+			if err := detailOutputAll(out, slp, dsMap); err != nil {
+				return false, 0, err
+			}
+
+		} else {
+			// A map of ProjectRoot and *BasicStatus. This is used in maintain the
+			// order of BasicStatus in output by collecting all the BasicStatus and
+			// then using them in order.
+			bsMap := make(map[string]*BasicStatus)
+			for bs := range dsCh {
+				bsMap[bs.ProjectRoot] = &bs.BasicStatus
+			}
+
+			if err := basicOutputAll(out, slp, bsMap); err != nil {
+				return false, 0, err
+			}
 		}
 
 		return false, errCount, err
@@ -960,6 +1068,27 @@ func basicOutputAll(out outputter, slp []gps.LockedProject, bsMap map[string]*Ba
 	}
 
 	if footerErr := out.BasicFooter(); footerErr != nil {
+		return footerErr
+	}
+
+	return nil
+}
+
+// detailOutputAll takes an outputter, a sorted project list, and a map of ProjectRoot to *DetailStatus and
+// uses the outputter to output detail header, body lines, and footer based on the project information
+func detailOutputAll(out outputter, slp []gps.LockedProject, dsMap map[string]*DetailStatus) (err error) {
+	if err := out.DetailHeader(); err != nil {
+		return err
+	}
+
+	// Use the collected BasicStatus in outputter.
+	for _, proj := range slp {
+		if err := out.DetailLine(dsMap[string(proj.Ident().ProjectRoot)]); err != nil {
+			return err
+		}
+	}
+
+	if footerErr := out.DetailFooter(); footerErr != nil {
 		return footerErr
 	}
 
