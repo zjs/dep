@@ -7,6 +7,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"encoding/hex"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -118,9 +119,9 @@ type outputter interface {
 	BasicHeader() error
 	BasicLine(*BasicStatus) error
 	BasicFooter() error
-	DetailHeader() error
+	DetailHeader(*dep.SolveMeta) error
 	DetailLine(*DetailStatus) error
-	DetailFooter() error
+	DetailFooter(*dep.SolveMeta) error
 	MissingHeader() error
 	MissingLine(*MissingStatus) error
 	MissingFooter() error
@@ -157,12 +158,12 @@ func (out *tableOutput) BasicLine(bs *BasicStatus) error {
 	return err
 }
 
-func (out *tableOutput) DetailHeader() error {
+func (out *tableOutput) DetailHeader(metadata *dep.SolveMeta) error {
 	_, err := fmt.Fprintf(out.w, "PROJECT\tSOURCE\tCONSTRAINT\tVERSION\tREVISION\tLATEST\tPKGS USED\n")
 	return err
 }
 
-func (out *tableOutput) DetailFooter() error {
+func (out *tableOutput) DetailFooter(metadata *dep.SolveMeta) error {
 	return out.BasicFooter()
 }
 
@@ -240,13 +241,18 @@ func (out *jsonOutput) BasicLine(bs *BasicStatus) error {
 	return nil
 }
 
-func (out *jsonOutput) DetailHeader() error {
+func (out *jsonOutput) DetailHeader(metadata *dep.SolveMeta) error {
 	out.detail = []*rawDetailStatus{}
 	return nil
 }
 
-func (out *jsonOutput) DetailFooter() error {
-	return json.NewEncoder(out.w).Encode(out.detail)
+func (out *jsonOutput) DetailFooter(metadata *dep.SolveMeta) error {
+	doc := rawDetailView{
+		Projects: out.detail,
+		Metadata: newRawMetadata(metadata),
+	}
+
+	return json.NewEncoder(out.w).Encode(doc)
 }
 
 func (out *jsonOutput) DetailLine(ds *DetailStatus) error {
@@ -312,11 +318,11 @@ func (out *dotOutput) BasicLine(bs *BasicStatus) error {
 	return nil
 }
 
-func (out *dotOutput) DetailHeader() error {
+func (out *dotOutput) DetailHeader(metadata *dep.SolveMeta) error {
 	return out.BasicHeader()
 }
 
-func (out *dotOutput) DetailFooter() error {
+func (out *dotOutput) DetailFooter(metadata *dep.SolveMeta) error {
 	return out.BasicFooter()
 }
 
@@ -348,12 +354,12 @@ func (out *templateOutput) BasicLine(bs *BasicStatus) error {
 }
 
 // TODO: Enhance
-func (out *templateOutput) DetailHeader() error {
+func (out *templateOutput) DetailHeader(metadata *dep.SolveMeta) error {
 	return out.BasicHeader()
 }
 
 // TODO: Enhance
-func (out *templateOutput) DetailFooter() error {
+func (out *templateOutput) DetailFooter(metadata *dep.SolveMeta) error {
 	return out.BasicFooter()
 }
 
@@ -666,6 +672,11 @@ type rawStatus struct {
 	PackageCount int
 }
 
+type rawDetailView struct {
+	Projects []*rawDetailStatus
+	Metadata rawMetadata
+}
+
 type rawDetailStatus struct {
 	ProjectRoot  string
 	Constraint   string
@@ -680,6 +691,28 @@ type rawDetailVersion struct {
 	Revision string   `json:"Revision,omitempty"`
 	Version  string   `json:"Version,omitempty"`
 	Branch   string   `json:"Branch,omitempty"`
+}
+
+type rawMetadata struct {
+    AnalyzerName    string
+    AnalyzerVersion int
+    InputsDigest    string
+    SolverName      string
+    SolverVersion   int
+}
+
+func newRawMetadata(metadata *dep.SolveMeta) rawMetadata {
+	if metadata == nil {
+		return rawMetadata{}
+	}
+
+	return rawMetadata{
+		AnalyzerName:    metadata.AnalyzerName,
+		AnalyzerVersion: metadata.AnalyzerVersion,
+		InputsDigest:    hex.EncodeToString(metadata.InputsDigest),
+		SolverName:      metadata.SolverName,
+		SolverVersion:   metadata.SolverVersion,
+	}
 }
 
 // BasicStatus contains all the information reported about a single dependency
@@ -1000,7 +1033,7 @@ func (cmd *statusCommand) runStatusAll(ctx *dep.Ctx, out outputter, p *dep.Proje
 				dsMap[ds.ProjectRoot] = ds
 			}
 
-			if err := detailOutputAll(out, slp, dsMap); err != nil {
+			if err := detailOutputAll(out, slp, dsMap, &p.Lock.SolveMeta); err != nil {
 				return false, 0, err
 			}
 
@@ -1113,8 +1146,8 @@ func basicOutputAll(out outputter, slp []gps.LockedProject, bsMap map[string]*Ba
 
 // detailOutputAll takes an outputter, a sorted project list, and a map of ProjectRoot to *DetailStatus and
 // uses the outputter to output detail header, body lines, and footer based on the project information
-func detailOutputAll(out outputter, slp []gps.LockedProject, dsMap map[string]*DetailStatus) (err error) {
-	if err := out.DetailHeader(); err != nil {
+func detailOutputAll(out outputter, slp []gps.LockedProject, dsMap map[string]*DetailStatus, metadata *dep.SolveMeta) (err error) {
+	if err := out.DetailHeader(metadata); err != nil {
 		return err
 	}
 
@@ -1125,7 +1158,7 @@ func detailOutputAll(out outputter, slp []gps.LockedProject, dsMap map[string]*D
 		}
 	}
 
-	if footerErr := out.DetailFooter(); footerErr != nil {
+	if footerErr := out.DetailFooter(metadata); footerErr != nil {
 		return footerErr
 	}
 

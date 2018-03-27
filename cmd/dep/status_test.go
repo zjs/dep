@@ -350,9 +350,9 @@ func TestDetailLine(t *testing.T) {
 				p: &project,
 				w: &buf,
 			}
-			dotout.DetailHeader()
+			dotout.DetailHeader(nil)
 			dotout.DetailLine(&test.status)
-			dotout.DetailFooter()
+			dotout.DetailFooter(nil)
 
 			for _, wantStatus := range test.wantDotStatus {
 				if ok := strings.Contains(buf.String(), wantStatus); !ok {
@@ -364,9 +364,9 @@ func TestDetailLine(t *testing.T) {
 
 			jsonout := &jsonOutput{w: &buf}
 
-			jsonout.DetailHeader()
+			jsonout.DetailHeader(nil)
 			jsonout.DetailLine(&test.status)
-			jsonout.DetailFooter()
+			jsonout.DetailFooter(nil)
 
 			for _, wantStatus := range test.wantJSONStatus {
 				if ok := strings.Contains(buf.String(), wantStatus); !ok {
@@ -380,9 +380,9 @@ func TestDetailLine(t *testing.T) {
 
 			tableout := &tableOutput{w: tabw}
 
-			tableout.DetailHeader()
+			tableout.DetailHeader(nil)
 			tableout.DetailLine(&test.status)
-			tableout.DetailFooter()
+			tableout.DetailFooter(nil)
 
 			for _, wantStatus := range test.wantTableStatus {
 				if ok := strings.Contains(buf.String(), wantStatus); !ok {
@@ -393,9 +393,9 @@ func TestDetailLine(t *testing.T) {
 			buf.Reset()
 			template, _ := template.New("status").Parse(templateString)
 			templateout := &templateOutput{w: &buf, tmpl: template}
-			templateout.DetailHeader()
+			templateout.DetailHeader(nil)
 			templateout.DetailLine(&test.status)
-			templateout.DetailFooter()
+			templateout.DetailFooter(nil)
 
 			for _, wantStatus := range test.wantTemplateStatus {
 				if ok := strings.Contains(buf.String(), wantStatus); !ok {
@@ -407,9 +407,9 @@ func TestDetailLine(t *testing.T) {
 			buf.Reset()
 			template, _ = template.New("status").Parse(equalityTestTemplate)
 			templateout = &templateOutput{w: &buf, tmpl: template}
-			templateout.DetailHeader()
+			templateout.DetailHeader(nil)
 			templateout.DetailLine(&test.status)
-			templateout.DetailFooter()
+			templateout.DetailFooter(nil)
 
 			for _, wantStatus := range test.wantEqTemplateStatus {
 				if ok := strings.Contains(buf.String(), wantStatus); !ok {
