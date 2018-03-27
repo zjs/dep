@@ -670,7 +670,7 @@ type rawStatus struct {
 
 type rawDetailStatus struct {
 	rawStatus
-	Source string
+	Source   string `json:"Source,omitempty"`
 }
 
 // BasicStatus contains all the information reported about a single dependency
