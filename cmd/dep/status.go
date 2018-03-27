@@ -221,6 +221,7 @@ func (out *tableOutput) OldFooter() error {
 type jsonOutput struct {
 	w       io.Writer
 	basic   []*rawStatus
+	detail  []*rawDetailStatus
 	missing []*MissingStatus
 	old     []*rawOldStatus
 }
@@ -239,19 +240,18 @@ func (out *jsonOutput) BasicLine(bs *BasicStatus) error {
 	return nil
 }
 
-// TODO: Enhance
 func (out *jsonOutput) DetailHeader() error {
-	return out.BasicHeader()
+	out.detail = []*rawDetailStatus{}
+	return nil
 }
 
-// TODO: Enhance
 func (out *jsonOutput) DetailFooter() error {
-	return out.BasicFooter()
+	return json.NewEncoder(out.w).Encode(out.detail)
 }
 
-// TODO: Enhance
 func (out *jsonOutput) DetailLine(ds *DetailStatus) error {
-	return out.DetailLine(ds)
+	out.detail = append(out.detail, ds.marshalJSON())
+	return nil
 }
 
 func (out *jsonOutput) MissingHeader() error {
@@ -661,6 +661,11 @@ type rawStatus struct {
 	PackageCount int
 }
 
+type rawDetailStatus struct {
+	rawStatus
+	Source string
+}
+
 // BasicStatus contains all the information reported about a single dependency
 // in the summary/list status output mode.
 type BasicStatus struct {
@@ -735,6 +740,13 @@ func (bs *BasicStatus) marshalJSON() *rawStatus {
 		Revision:     string(bs.Revision),
 		Latest:       bs.getConsolidatedLatest(longRev),
 		PackageCount: bs.PackageCount,
+	}
+}
+
+func (ds *DetailStatus) marshalJSON() *rawDetailStatus {
+	return &rawDetailStatus{
+		rawStatus: *ds.BasicStatus.marshalJSON(),
+		Source:    ds.Source,
 	}
 }
 
