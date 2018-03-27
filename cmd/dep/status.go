@@ -711,10 +711,6 @@ func runStatusAll(ctx *dep.Ctx, out outputter, p *dep.Project, sm gps.SourceMana
 		// complete picture of all deps. That eliminates the need for at least
 		// some checks.
 
-		if err := out.BasicHeader(); err != nil {
-			return false, 0, err
-		}
-
 		logger.Println("Checking upstream projects:")
 
 		// BasicStatus channel to collect all the BasicStatus.
@@ -871,6 +867,10 @@ func runStatusAll(ctx *dep.Ctx, out outputter, p *dep.Project, sm gps.SourceMana
 		bsMap := make(map[string]*BasicStatus)
 		for bs := range bsCh {
 			bsMap[bs.ProjectRoot] = bs
+		}
+
+		if err := out.BasicHeader(); err != nil {
+			return false, 0, err
 		}
 
 		// Use the collected BasicStatus in outputter.
