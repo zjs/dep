@@ -929,9 +929,10 @@ func (cmd *statusCommand) runStatusAll(ctx *dep.Ctx, out outputter, p *dep.Proje
 					BasicStatus: bs,
 				}
 
-				// TODO: Make this conditional, to avoid unnecessary work
-				ds.Source = proj.Ident().Source
-				ds.Packages = proj.Packages()
+				if cmd.detail {
+					ds.Source = proj.Ident().Source
+					ds.Packages = proj.Packages()
+				}
 
 				dsCh <- &ds
 
