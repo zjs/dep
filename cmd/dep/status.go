@@ -359,14 +359,11 @@ func (out *templateOutput) DetailFooter() error {
 
 func (out *templateOutput) DetailLine(ds *DetailStatus) error {
 	data := rawDetailStatus{
-		rawStatus: rawStatus{
-			ProjectRoot:  ds.ProjectRoot,
-			Constraint:   ds.getConsolidatedConstraint(),
-			Version:      ds.getConsolidatedVersion(),
-			Revision:     ds.Revision.String(),
-			Latest:       ds.getConsolidatedLatest(shortRev),
-			PackageCount: ds.PackageCount,
-		},
+		ProjectRoot:  ds.ProjectRoot,
+		Constraint:   ds.getConsolidatedConstraint(),
+		Locked:       formatDetailVersion(ds.Version, ds.Revision),
+		Latest:       formatDetailLatestVersion(ds.Latest, ds.hasError),
+		PackageCount: ds.PackageCount,
 		Source:   ds.Source,
 		Packages: ds.Packages,
 	}
@@ -670,9 +667,19 @@ type rawStatus struct {
 }
 
 type rawDetailStatus struct {
-	rawStatus
-	Source   string `json:"Source,omitempty"`
-	Packages []string
+	ProjectRoot  string
+	Constraint   string
+	Locked       rawDetailVersion
+	Latest       rawDetailVersion
+	Source       string `json:"Source,omitempty"`
+	PackageCount int
+	Packages     []string
+}
+
+type rawDetailVersion struct {
+	Revision string   `json:"Revision,omitempty"`
+	Version  string   `json:"Version,omitempty"`
+	Branch   string   `json:"Branch,omitempty"`
 }
 
 // BasicStatus contains all the information reported about a single dependency
@@ -753,10 +760,16 @@ func (bs *BasicStatus) marshalJSON() *rawStatus {
 }
 
 func (ds *DetailStatus) marshalJSON() *rawDetailStatus {
+	rawStatus := ds.BasicStatus.marshalJSON()
+
 	return &rawDetailStatus{
-		rawStatus: *ds.BasicStatus.marshalJSON(),
-		Source:    ds.Source,
-		Packages:  ds.Packages,
+		ProjectRoot:  rawStatus.ProjectRoot,
+		Constraint:   rawStatus.Constraint,
+		Locked:       formatDetailVersion(ds.Version, ds.Revision),
+		Latest:       formatDetailLatestVersion(ds.Latest, ds.hasError),
+		Source:       ds.Source,
+		Packages:     ds.Packages,
+		PackageCount: ds.PackageCount,
 	}
 }
 
@@ -1134,6 +1147,40 @@ func formatVersion(v gps.Version) string {
 		return r
 	}
 	return v.String()
+}
+
+func formatDetailVersion(v gps.Version, r gps.Revision) rawDetailVersion {
+	if v == nil {
+		return rawDetailVersion{
+			Revision: r.String(),
+		}
+	}
+	switch v.Type() {
+	case gps.IsBranch:
+		return rawDetailVersion{
+			Branch:   v.String(),
+			Revision: r.String(),
+		}
+	case gps.IsRevision:
+		return rawDetailVersion{
+			Revision: v.String(),
+		}
+	}
+
+	return rawDetailVersion{
+		Version:  v.String(),
+		Revision: r.String(),
+	}
+}
+
+func formatDetailLatestVersion(v gps.Version, hasError bool) rawDetailVersion {
+	if hasError {
+		return rawDetailVersion{
+			Revision: "unknown",
+		}
+	}
+
+	return formatDetailVersion(v, "")
 }
 
 // projectConstraint stores ProjectRoot and Constraint for that project.

@@ -200,8 +200,8 @@ func TestDetailLine(t *testing.T) {
 	project := dep.Project{}
 	aSemverConstraint, _ := gps.NewSemverConstraint("1.2.3")
 
-	templateString := "PR:{{.ProjectRoot}}, Src:{{.Source}}, Const:{{.Constraint}}, Ver:{{.Version}}, Rev:{{.Revision}}, Lat:{{.Latest}}, PkgCt:{{.PackageCount}}, Pkgs:{{.Packages}}"
-	equalityTestTemplate := `{{if eq .Constraint "1.2.3"}}Constraint is 1.2.3{{end}}|{{if eq .Version "flooboo"}}Version is flooboo{{end}}|{{if eq .Latest "unknown"}}Latest is unknown{{end}}`
+	templateString := "PR:{{.ProjectRoot}}, Src:{{.Source}}, Const:{{.Constraint}}, Ver:{{.Locked.Version}}, Rev:{{.Locked.Revision}}, Lat:{{.Latest.Revision}}, PkgCt:{{.PackageCount}}, Pkgs:{{.Packages}}"
+	equalityTestTemplate := `{{if eq .Constraint "1.2.3"}}Constraint is 1.2.3{{end}}|{{if eq .Locked.Version "flooboo"}}Version is flooboo{{end}}|{{if eq .Locked.Revision "flooboofoobooo"}}Revision is flooboofoobooo{{end}}|{{if eq .Latest.Revision "unknown"}}Latest is unknown{{end}}`
 
 	tests := []struct {
 		name                 string
@@ -221,7 +221,7 @@ func TestDetailLine(t *testing.T) {
 				Packages: []string{},
 			},
 			wantDotStatus:        []string{`[label="github.com/foo/bar"];`},
-			wantJSONStatus:       []string{`"Version":""`, `"Revision":""`},
+			wantJSONStatus:       []string{`"Locked":{}`},
 			wantTableStatus:      []string{`github.com/foo/bar                                                 []`},
 			wantTemplateStatus:   []string{`PR:github.com/foo/bar, Src:, Const:, Ver:, Rev:, Lat:, PkgCt:0, Pkgs:[]`},
 			wantEqTemplateStatus: []string{`||`},
@@ -236,10 +236,10 @@ func TestDetailLine(t *testing.T) {
 				Packages: []string{},
 			},
 			wantDotStatus:        []string{`[label="github.com/foo/bar\nflooboo"];`},
-			wantJSONStatus:       []string{`"Version":""`, `"Revision":"flooboofoobooo"`, `"Constraint":""`},
+			wantJSONStatus:       []string{`"Locked":{"Revision":"flooboofoobooo"}`, `"Constraint":""`},
 			wantTableStatus:      []string{`github.com/foo/bar                               flooboo           []`},
-			wantTemplateStatus:   []string{`PR:github.com/foo/bar, Src:, Const:, Ver:flooboo, Rev:flooboofoobooo, Lat:, PkgCt:0, Pkgs:[]`},
-			wantEqTemplateStatus: []string{`|Version is flooboo|`},
+			wantTemplateStatus:   []string{`PR:github.com/foo/bar, Src:, Const:, Ver:, Rev:flooboofoobooo, Lat:, PkgCt:0, Pkgs:[]`},
+			wantEqTemplateStatus: []string{`|Revision is flooboofoobooo|`},
 		},
 		{
 			name: "DetailStatus with Source",
@@ -251,7 +251,7 @@ func TestDetailLine(t *testing.T) {
 				Source:   "github.com/baz/bar",
 			},
 			wantDotStatus:        []string{`[label="github.com/foo/bar"];`},
-			wantJSONStatus:       []string{`"Version":""`, `"Source":"github.com/baz/bar"`, `"Constraint":""`},
+			wantJSONStatus:       []string{`"Locked":{}`, `"Source":"github.com/baz/bar"`, `"Constraint":""`},
 			wantTableStatus:      []string{`github.com/foo/bar  github.com/baz/bar                                         []`},
 			wantTemplateStatus:   []string{`PR:github.com/foo/bar, Src:github.com/baz/bar, Const:, Ver:, Rev:, Lat:, PkgCt:0, Pkgs:[]`},
 			wantEqTemplateStatus: []string{`||`},
@@ -335,7 +335,7 @@ func TestDetailLine(t *testing.T) {
 				Packages: []string{},
 			},
 			wantDotStatus:        []string{`[label="github.com/foo/bar"];`},
-			wantJSONStatus:       []string{`"Version":""`, `"Revision":""`, `"Latest":"unknown"`},
+			wantJSONStatus:       []string{`"Locked":{}`, `"Latest":{"Revision":"unknown"}`},
 			wantTableStatus:      []string{`github.com/foo/bar                                         unknown  []`},
 			wantTemplateStatus:   []string{`PR:github.com/foo/bar, Src:, Const:, Ver:, Rev:, Lat:unknown, PkgCt:0, Pkgs:[]`},
 			wantEqTemplateStatus: []string{`||Latest is unknown`},
