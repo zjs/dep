@@ -98,6 +98,7 @@ func (cmd *statusCommand) Register(fs *flag.FlagSet) {
 	fs.BoolVar(&cmd.examples, "examples", false, "print detailed usage examples")
 	fs.BoolVar(&cmd.json, "json", false, "output in JSON format")
 	fs.StringVar(&cmd.template, "f", "", "output in text/template format")
+	fs.BoolVar(&cmd.lock, "lock", false, "output in the lock file format (assumes -detail)")
 	fs.BoolVar(&cmd.dot, "dot", false, "output the dependency graph in GraphViz format")
 	fs.BoolVar(&cmd.old, "old", false, "only show out-of-date dependencies")
 	fs.BoolVar(&cmd.missing, "missing", false, "only show missing dependencies")
@@ -108,6 +109,7 @@ type statusCommand struct {
 	examples bool
 	json     bool
 	template string
+	lock     bool
 	output   string
 	dot      bool
 	old      bool
@@ -447,6 +449,15 @@ func (cmd *statusCommand) Run(ctx *dep.Ctx, args []string) error {
 			w:    &buf,
 			tmpl: tmpl,
 		}
+	case cmd.lock:
+		tmpl, err := parseStatusTemplate(defaultStatusTemplate)
+		if err != nil {
+			return err
+		}
+		out = &templateOutput{
+			w:    &buf,
+			tmpl: tmpl,
+		}
 	default:
 		out = &tableOutput{
 			w: tabwriter.NewWriter(&buf, 0, 4, 2, ' ', 0),
@@ -526,6 +537,16 @@ func (cmd *statusCommand) validateFlags() error {
 
 		if len(opModes) > 0 {
 			return errors.New("-dot generates dependency graph; cannot pass other flags")
+		}
+	}
+
+	if cmd.lock {
+		if cmd.template != "" {
+			return errors.New("cannot pass template string with -lock")
+		}
+
+		if !cmd.detail {
+			cmd.detail = true
 		}
 	}
 
