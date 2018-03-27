@@ -357,9 +357,19 @@ func (out *templateOutput) DetailFooter() error {
 	return out.BasicFooter()
 }
 
-// TODO: Enhance
 func (out *templateOutput) DetailLine(ds *DetailStatus) error {
-	return out.DetailLine(ds)
+	data := rawDetailStatus{
+		rawStatus: rawStatus{
+			ProjectRoot:  ds.ProjectRoot,
+			Constraint:   ds.getConsolidatedConstraint(),
+			Version:      ds.getConsolidatedVersion(),
+			Revision:     ds.Revision.String(),
+			Latest:       ds.getConsolidatedLatest(shortRev),
+			PackageCount: ds.PackageCount,
+		},
+		Source: ds.Source,
+	}
+	return out.tmpl.Execute(out.w, data)
 }
 
 func (out *templateOutput) OldHeader() error { return nil }
