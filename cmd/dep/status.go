@@ -312,17 +312,14 @@ func (out *dotOutput) BasicLine(bs *BasicStatus) error {
 	return nil
 }
 
-// TODO: Enhance
 func (out *dotOutput) DetailHeader() error {
 	return out.BasicHeader()
 }
 
-// TODO: Enhance
 func (out *dotOutput) DetailFooter() error {
 	return out.BasicFooter()
 }
 
-// TODO: Enhance
 func (out *dotOutput) DetailLine(ds *DetailStatus) error {
 	return out.DetailLine(ds)
 }
