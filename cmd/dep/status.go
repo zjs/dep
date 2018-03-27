@@ -168,14 +168,14 @@ func (out *tableOutput) DetailFooter() error {
 
 func (out *tableOutput) DetailLine(ds *DetailStatus) error {
 	_, err := fmt.Fprintf(out.w,
-		"%s\t%s\t%s\t%s\t%s\t%s\t%d\t\n",
+		"%s\t%s\t%s\t%s\t%s\t%s\t[%s]\t\n",
 		ds.ProjectRoot,
 		ds.Source,
 		ds.getConsolidatedConstraint(),
 		formatVersion(ds.Version),
 		formatVersion(ds.Revision),
 		ds.getConsolidatedLatest(shortRev),
-		ds.PackageCount,
+		strings.Join(ds.Packages,", "),
 	)
 	return err
 }
@@ -367,7 +367,8 @@ func (out *templateOutput) DetailLine(ds *DetailStatus) error {
 			Latest:       ds.getConsolidatedLatest(shortRev),
 			PackageCount: ds.PackageCount,
 		},
-		Source: ds.Source,
+		Source:   ds.Source,
+		Packages: ds.Packages,
 	}
 	return out.tmpl.Execute(out.w, data)
 }
@@ -671,6 +672,7 @@ type rawStatus struct {
 type rawDetailStatus struct {
 	rawStatus
 	Source   string `json:"Source,omitempty"`
+	Packages []string
 }
 
 // BasicStatus contains all the information reported about a single dependency
@@ -754,6 +756,7 @@ func (ds *DetailStatus) marshalJSON() *rawDetailStatus {
 	return &rawDetailStatus{
 		rawStatus: *ds.BasicStatus.marshalJSON(),
 		Source:    ds.Source,
+		Packages:  ds.Packages,
 	}
 }
 
@@ -928,6 +931,7 @@ func (cmd *statusCommand) runStatusAll(ctx *dep.Ctx, out outputter, p *dep.Proje
 
 				// TODO: Make this conditional, to avoid unnecessary work
 				ds.Source = proj.Ident().Source
+				ds.Packages = proj.Packages()
 
 				dsCh <- &ds
 
