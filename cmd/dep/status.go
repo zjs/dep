@@ -869,19 +869,8 @@ func runStatusAll(ctx *dep.Ctx, out outputter, p *dep.Project, sm gps.SourceMana
 			bsMap[bs.ProjectRoot] = bs
 		}
 
-		if err := out.BasicHeader(); err != nil {
+		if err := basicOutputAll(out, slp, bsMap); err != nil {
 			return false, 0, err
-		}
-
-		// Use the collected BasicStatus in outputter.
-		for _, proj := range slp {
-			if err := out.BasicLine(bsMap[string(proj.Ident().ProjectRoot)]); err != nil {
-				return false, 0, err
-			}
-		}
-
-		if footerErr := out.BasicFooter(); footerErr != nil {
-			return false, 0, footerErr
 		}
 
 		return false, errCount, err
@@ -954,6 +943,27 @@ outer:
 
 	// We are here because of an input-digest mismatch. Return error.
 	return hasMissingPkgs, 0, errInputDigestMismatch
+}
+
+// basicOutputAll takes an outputter, a sorted project list, and a map of ProjectRoot to *BasicStatus and
+// uses the outputter to output basic header, body lines, and footer based on the project information
+func basicOutputAll(out outputter, slp []gps.LockedProject, bsMap map[string]*BasicStatus) (err error) {
+	if err := out.BasicHeader(); err != nil {
+		return err
+	}
+
+	// Use the collected BasicStatus in outputter.
+	for _, proj := range slp {
+		if err := out.BasicLine(bsMap[string(proj.Ident().ProjectRoot)]); err != nil {
+			return err
+		}
+	}
+
+	if footerErr := out.BasicFooter(); footerErr != nil {
+		return footerErr
+	}
+
+	return nil
 }
 
 func formatVersion(v gps.Version) string {
